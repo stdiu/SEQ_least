@@ -9,6 +9,9 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 import time, threading
+from datetime import datetime,timedelta
+
+from rule_analyzing import RuleAnalyzing
 
 class SeqStatistics(QWidget):
     def __init__(self):
@@ -301,6 +304,10 @@ class SeqStatistics(QWidget):
         # self.progressBardisp()      # 调用进度条显示函数
         self.ui.progressBar.show()
         self.ui.progressBar.setValue(1)
+
+        # 实例化规则表
+        self.rule = RuleAnalyzing('筛选原则v3.xlsx')
+
         # ************  判断话单原始数据  **********#
         if self.filepath_MO != '':
             # 读取主叫话单dataframe
@@ -308,25 +315,38 @@ class SeqStatistics(QWidget):
                 df_MO = pd.read_excel(
                     self.filepath_MO,
                     sheet_name='CDR_IMS_MO_CALL_LEG_SIP',
-                    usecols=['开始时间', '结束时间', 'MSISDN', 'IMSI', '用户类型', '业务状态', '异常释放标识', '综合失败原因', '接入位置名称', '结束4G小区名称']
+                    usecols=['开始时间', '结束时间', '序号','MSISDN', 'IMSI', '用户类型', '业务状态',
+                               '异常释放标识', '综合失败原因', '接入位置名称', '结束4G小区名称']
                 )
+                # self.analysis_timestamp(df_MO, self.rule.rule_mo)  # 调用时间戳函数计算时间
             except:
-                QMessageBox.critical(self.ui, '错误', '请选择正确的话单文件！')
+                QMessageBox.critical(self.ui, '错误', '请选择正确的主叫话单文件！')
+
         if self.filepath_MT != '':
             # 读取被叫话单dataframe
             try:
                 df_MT = pd.read_excel(
                     self.filepath_MT,
                     sheet_name='CDR_IMS_MT_CALL_LEG_SIP',
-                    usecols=['开始时间', '结束时间', 'MSISDN', 'IMSI', '用户类型', '业务状态', '异常释放标识', '综合失败原因', '接入位置名称', '结束4G小区名称']
+                    usecols=['开始时间', '结束时间', '序号', 'MSISDN', 'IMSI', '用户类型', '业务状态', '异常释放标识', '综合失败原因', '接入位置名称', '结束4G小区名称']
                 )
             except:
-                QMessageBox.critical(self.ui, '错误', '请选择正确的话单文件！')
+                QMessageBox.critical(self.ui, '错误', '请选择正确的被叫话单文件！')
         if self.filepath_MO == '' and self.filepath_MT == '':
             QMessageBox.critical(self.ui, '错误', '请选择话单文件！')
+        self.analysis_timestamp(df_MO, self.rule.rule_mo)  # 调用时间戳函数计算时间
 
-        # 时间戳函数
-        def analysis_mo(df_mo):
+    # 时间戳函数
+    def analysis_timestamp(self, df, rule):
+        print('进入时间戳计算')
+        for i in range(len(df)):
+            d = datetime.strptime(df.iloc[i]['结束时间'], "%Y-%m-%d %H:%M:%S.%f") - datetime.strptime(
+                df.iloc[i]['开始时间'], "%Y-%m-%d %H:%M:%S.%f")
+            if d.total_seconds() <= 2:
+                if str(df.iloc[i]["综合失败原因"]) in str(rule['综合失败原因']) and rule.loc[df.iloc[i]["综合失败原因"], '是否保留'] != str("否"):
+                    print(df.iloc[i]["综合失败原因"])
+                else:
+                    print('该原因不在')
 
 
 
@@ -334,7 +354,7 @@ class SeqStatistics(QWidget):
         app = QApplication.instance()
         app.quit()
 
-    def save_result(self):      # 保存函数
+    def save_result(self):      # 数据保存函数
         filepath_save,_ = QFileDialog.getSaveFileName(
             self.ui,
             '保存结果为',
