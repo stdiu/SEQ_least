@@ -339,29 +339,27 @@ class SeqStatistics(QWidget):
     # 时间戳函数
     def analysis_timestamp(self, df, rule):
         print('进入时间戳计算')
-        j = 0
         for i in range(len(df)):
             d = datetime.strptime(df.iloc[i]['结束时间'], "%Y-%m-%d %H:%M:%S.%f") - datetime.strptime(
                 df.iloc[i]['开始时间'], "%Y-%m-%d %H:%M:%S.%f")
             if d.total_seconds() <= 2:
-                j = j + 1
+                print(df.iloc[i]['序号'])
                 if str(df.iloc[i]["综合失败原因"]) in str(rule['综合失败原因']):       # 如果在筛选表，判断是否保留
                     a = df.iloc[i]["综合失败原因"]
                     b=rule[rule['综合失败原因']==df.iloc[i]["综合失败原因"]]['是否保留']
                     # print(b.iloc[-1])
                     if str(b.iloc[-1]) != '否':
                         print('在表里')
-                        rule = rule.append([{'综合失败原因': df.iloc[i]["综合失败原因"], '是否保留': '是', '原因': datetime.now()}],
+                        rule = rule.append([{'综合失败原因': df.iloc[i]["综合失败原因"], '是否保留': '是', '原因': datetime.now().strftime("%Y-%M-%d %H:%M:%S")+'新增'}],
                                            ignore_index=True)
                     else:
                         pass
 
                 else:       # 如果不在筛选表，直接保留
                     print('不在表里')
-                    rule = rule.append([{'综合失败原因':df.iloc[i]["综合失败原因"], '是否保留':'是', '原因':datetime.now()}], ignore_index=True)
+                    rule = rule.append([{'综合失败原因':df.iloc[i]["综合失败原因"], '是否保留':'是', '原因':datetime.now().strftime("%Y-%M-%d %H:%M:%S")+'新增'}], ignore_index=True)
         print(rule)
         return rule
-
 
     def abandon(self):          # 进程中止函数
         app = QApplication.instance()
