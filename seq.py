@@ -10,7 +10,7 @@ import numpy as np
 from pathlib import Path
 import time, threading
 from datetime import datetime,timedelta
-
+from openpyxl import load_workbook
 from rule_analyzing import RuleAnalyzing
 
 class SeqStatistics(QWidget):
@@ -334,7 +334,8 @@ class SeqStatistics(QWidget):
                 QMessageBox.critical(self.ui, '错误', '请选择正确的被叫话单文件！')
         if self.filepath_MO == '' and self.filepath_MT == '':
             QMessageBox.critical(self.ui, '错误', '请选择话单文件！')
-        self.analysis_timestamp(df_MO, self.rule.rule_mo)  # 调用时间戳函数计算时间
+        bbb = self.analysis_timestamp(df_MO, self.rule.rule_mo)  # 调用时间戳函数计算时间
+        print(bbb)
 
     # 时间戳函数
     def analysis_timestamp(self, df, rule):
@@ -349,17 +350,20 @@ class SeqStatistics(QWidget):
                     # print(b.iloc[-1])
                     if str(b.iloc[-1]) != '否':
                         print('在表里')
-                        rule = rule.append([{'综合失败原因': df.iloc[i]["综合失败原因"], '是否保留': '是', '原因': datetime.now().strftime("%Y-%M-%d %H:%M:%S")+'新增'}],
+                        rule = rule.append([{'综合失败原因': df.iloc[i]["综合失败原因"], '是否保留': '是', '原因': datetime.now().strftime("%Y-%M-%d ")+'新增'+",2秒内断开"}],
                                            ignore_index=True)
                     else:
                         pass
 
                 else:       # 如果不在筛选表，直接保留
                     print('不在表里')
-                    rule = rule.append([{'综合失败原因':df.iloc[i]["综合失败原因"], '是否保留':'是', '原因':datetime.now().strftime("%Y-%M-%d %H:%M:%S")+'新增'}], ignore_index=True)
-        write = pd.ExcelWriter(r'./data/')
-        rule.to_excel(write, index=False, sheet_name="主叫筛选原则")
-        write.close()
+                    mo_rule = rule.append([{'综合失败原因':df.iloc[i]["综合失败原因"], '是否保留':'是', '原因':datetime.now().strftime("%Y-%m-%d")+'新增'+",2秒内断开"}], ignore_index=True)
+
+        # 更新筛选表
+        write = pd.ExcelWriter(rf'./data/{datetime.now().strftime("%Y-%m-%d")}筛选表.xlsx')
+        mo_rule.to_excel(write,'表12')
+        write.save()
+        return mo_rule
 
     def abandon(self):          # 进程中止函数
         app = QApplication.instance()
