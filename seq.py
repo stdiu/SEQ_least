@@ -309,6 +309,8 @@ class SeqStatistics(QWidget):
         self.rule = RuleAnalyzing('筛选原则v3.xlsx')
 
         # ************  判断话单原始数据  **********#
+        write = pd.ExcelWriter(rf'./data/{datetime.now().strftime("%Y-%m-%d")}筛选表.xlsx')  # 建立筛选规则表
+
         if self.filepath_MO != '':
             # 读取主叫话单dataframe
             try:
@@ -318,7 +320,9 @@ class SeqStatistics(QWidget):
                     usecols=['开始时间', '结束时间', '序号','MSISDN', 'IMSI', '用户类型', '业务状态',
                                '异常释放标识', '综合失败原因', '接入位置名称', '结束4G小区名称']
                 )
-                # self.analysis_timestamp(df_MO, self.rule.rule_mo)  # 调用时间戳函数计算时间
+                # mo_rule = self.analysis_timestamp(df_MO, self.rule.rule_mo)  # 调用时间戳函数计算时间
+                # mo_rule= self.analysis_userhabits(df_MO, mo_rule)  # 调用用户分析函数分析回拨行为
+                # mo_rule.to_excel(write, '主叫筛选规则', index=False)
             except:
                 QMessageBox.critical(self.ui, '错误', '请选择正确的主叫话单文件！')
 
@@ -330,12 +334,63 @@ class SeqStatistics(QWidget):
                     sheet_name='CDR_IMS_MT_CALL_LEG_SIP',
                     usecols=['开始时间', '结束时间', '序号', 'MSISDN', 'IMSI', '用户类型', '业务状态', '异常释放标识', '综合失败原因', '接入位置名称', '结束4G小区名称']
                 )
+                mt_rule = self.analysis_timestamp(df_MT, self.rule.rule_mt)  # 调用时间戳函数计算时间
+                mt_rule.to_excel(write, '被叫筛选规则', index=False)
             except:
                 QMessageBox.critical(self.ui, '错误', '请选择正确的被叫话单文件！')
         if self.filepath_MO == '' and self.filepath_MT == '':
             QMessageBox.critical(self.ui, '错误', '请选择话单文件！')
-        bbb = self.analysis_timestamp(df_MO, self.rule.rule_mo)  # 调用时间戳函数计算时间
-        print(bbb)
+
+        mo_rule = self.analysis_timestamp(df_MO, self.rule.rule_mo)  # 调用时间戳函数计算时间
+        mo_rule = self.analysis_userhabits(df_MO, mo_rule)  # 调用用户分析函数分析回拨行为
+        mo_rule.to_excel(write, '主叫筛选规则', index=False)
+        write.save()
+
+        # 调用分析函数   # 原因值为 mo_rule、mt_rule  主叫表为 df_MO 、df_MT
+
+    # 分析原因函数
+    def analysis_statistics(self, df, rule, identifi):
+        pass
+
+    # 用户回拨行为分析
+    def analysis_userhabits(self, df, rule):
+        print('进入用户行为分析函数')
+        for i in range(len(df)):
+            if df.iloc[i]['业务状态'] == '失败' or df.iloc[i]['异常释放标识'] == '是':
+                TD = datetime.strptime(df.iloc[i]['开始时间'], "%Y-%m-%d %H:%M:%S.%f") - datetime.strptime(
+                    df.iloc[i-1]['结束时间'], "%Y-%m-%d %H:%M:%S.%f")
+                if TD.total_seconds() <= 120 :
+                    if df.iloc[i-1]['业务状态'] == '成功' and df.iloc[i-1]['异常释放标识'] == '否':
+                        TD_flag = True
+                    else:
+                        TD_flag = False
+                else:
+                    TD_flag = False
+
+                TU = datetime.strptime(df.iloc[i+1]['开始时间'], "%Y-%m-%d %H:%M:%S.%f") - datetime.strptime(
+                    df.iloc[i]['结束时间'], "%Y-%m-%d %H:%M:%S.%f")
+                if TU.total_seconds() <= 120:
+                    if df.iloc[i - 1]['业务状态'] == '成功' and df.iloc[i - 1]['异常释放标识'] == '否':
+                        TU_flag = True
+                    else:
+                        TU_flag = False
+                else:
+                    TU_flag = False
+
+                if TD_flag == True and TU_flag == True:
+                    if df.iloc[i]['综合失败原因'] in rule['综合失败原因']:
+                        pass
+                    else:
+                        rule = rule.append([{'综合失败原因': df.iloc[i]["综合失败原因"], '是否保留': '是',
+                                             '原因': datetime.now().strftime("%Y-%m-%d") + '新增' + ",2分钟内正常"}],
+                                           ignore_index=True)
+        return rule
+
+
+
+
+
+
 
     # 时间戳函数
     def analysis_timestamp(self, df, rule):
@@ -357,13 +412,10 @@ class SeqStatistics(QWidget):
 
                 else:       # 如果不在筛选表，直接保留
                     print('不在表里')
-                    mo_rule = rule.append([{'综合失败原因':df.iloc[i]["综合失败原因"], '是否保留':'是', '原因':datetime.now().strftime("%Y-%m-%d")+'新增'+",2秒内断开"}], ignore_index=True)
+                    rule = rule.append([{'综合失败原因':df.iloc[i]["综合失败原因"], '是否保留':'是', '原因':datetime.now().strftime("%Y-%m-%d")+'新增'+",2秒内断开"}], ignore_index=True)
 
         # 更新筛选表
-        write = pd.ExcelWriter(rf'./data/{datetime.now().strftime("%Y-%m-%d")}筛选表.xlsx')
-        mo_rule.to_excel(write,'表12')
-        write.save()
-        return mo_rule
+        return rule
 
     def abandon(self):          # 进程中止函数
         app = QApplication.instance()
