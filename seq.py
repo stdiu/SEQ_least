@@ -320,9 +320,9 @@ class SeqStatistics(QWidget):
                     usecols=['开始时间', '结束时间', '序号','MSISDN', 'IMSI', '用户类型', '业务状态',
                                '异常释放标识', '综合失败原因', '接入位置名称', '结束4G小区名称']
                 )
-                # mo_rule = self.analysis_timestamp(df_MO, self.rule.rule_mo)  # 调用时间戳函数计算时间
-                # mo_rule= self.analysis_userhabits(df_MO, mo_rule)  # 调用用户分析函数分析回拨行为
-                # mo_rule.to_excel(write, '主叫筛选规则', index=False)
+                mo_rule = self.analysis_timestamp(df_MO, self.rule.rule_mo)  # 调用时间戳函数计算时间
+                mo_rule= self.analysis_userhabits(df_MO, mo_rule)  # 调用用户分析函数分析回拨行为
+                mo_rule.to_excel(write, '主叫筛选规则', index=False)
             except:
                 QMessageBox.critical(self.ui, '错误', '请选择正确的主叫话单文件！')
 
@@ -335,62 +335,65 @@ class SeqStatistics(QWidget):
                     usecols=['开始时间', '结束时间', '序号', 'MSISDN', 'IMSI', '用户类型', '业务状态', '异常释放标识', '综合失败原因', '接入位置名称', '结束4G小区名称']
                 )
                 mt_rule = self.analysis_timestamp(df_MT, self.rule.rule_mt)  # 调用时间戳函数计算时间
+                mt_rule = self.analysis_userhabits(df_MT, mt_rule)  # 调用用户分析函数分析回拨行为
                 mt_rule.to_excel(write, '被叫筛选规则', index=False)
             except:
                 QMessageBox.critical(self.ui, '错误', '请选择正确的被叫话单文件！')
         if self.filepath_MO == '' and self.filepath_MT == '':
             QMessageBox.critical(self.ui, '错误', '请选择话单文件！')
 
-        mo_rule = self.analysis_timestamp(df_MO, self.rule.rule_mo)  # 调用时间戳函数计算时间
-        mo_rule = self.analysis_userhabits(df_MO, mo_rule)  # 调用用户分析函数分析回拨行为
-        mo_rule.to_excel(write, '主叫筛选规则', index=False)
         write.save()
 
         # 调用分析函数   # 原因值为 mo_rule、mt_rule  主叫表为 df_MO 、df_MT
 
     # 分析原因函数
     def analysis_statistics(self, df, rule, identifi):
-        pass
+        rule_check = rule[rule['是否保留']=='是']
+        df_fail = df[df['业务状态']=='失败' & df['综合失败原因'].isin(rule_check)]   # *叫失败
+        df_offline = df[df['异常释放标识']=='是' & df['综合失败原因'].isin(rule_check)]  # *叫掉线
+
+        # 统计话单数
+        sum_call = df.shape[0]          # 行数
+        sum_call_tpye = df['用户类型'].value_counts()   # 统计话单类型及数量
+        sum_call_epsfb = sum_call_tpye['Vo5G']   # Vo5G话单数量
+        sum_call_volte = sum_call - sum_call_epsfb  # volte话单数量
 
     # 用户回拨行为分析
     def analysis_userhabits(self, df, rule):
         print('进入用户行为分析函数')
-        for i in range(len(df)):
+        for i in range(len(df)-1):
+            TD_flag = False
+            TU_flag = False
             if df.iloc[i]['业务状态'] == '失败' or df.iloc[i]['异常释放标识'] == '是':
-                TD = datetime.strptime(df.iloc[i]['开始时间'], "%Y-%m-%d %H:%M:%S.%f") - datetime.strptime(
-                    df.iloc[i-1]['结束时间'], "%Y-%m-%d %H:%M:%S.%f")
-                if TD.total_seconds() <= 120 :
-                    if df.iloc[i-1]['业务状态'] == '成功' and df.iloc[i-1]['异常释放标识'] == '否':
-                        TD_flag = True
+                if df.iloc[i]['IMSI'] == df.iloc[i-1]['IMSI']:
+                    TD = datetime.strptime(df.iloc[i]['开始时间'], "%Y-%m-%d %H:%M:%S.%f") - datetime.strptime(
+                        df.iloc[i-1]['结束时间'], "%Y-%m-%d %H:%M:%S.%f")
+                    if TD.total_seconds() <= 120 :
+                        if df.iloc[i-1]['业务状态'] == '成功' and df.iloc[i-1]['异常释放标识'] == '否':
+                            TD_flag = True
+                        else:
+                            TD_flag = False
                     else:
                         TD_flag = False
-                else:
-                    TD_flag = False
-
-                TU = datetime.strptime(df.iloc[i+1]['开始时间'], "%Y-%m-%d %H:%M:%S.%f") - datetime.strptime(
-                    df.iloc[i]['结束时间'], "%Y-%m-%d %H:%M:%S.%f")
-                if TU.total_seconds() <= 120:
-                    if df.iloc[i - 1]['业务状态'] == '成功' and df.iloc[i - 1]['异常释放标识'] == '否':
-                        TU_flag = True
+                if df.iloc[i]['IMSI'] == df.iloc[i + 1]['IMSI']:
+                    TU = datetime.strptime(df.iloc[i+1]['开始时间'], "%Y-%m-%d %H:%M:%S.%f") - datetime.strptime(
+                        df.iloc[i]['结束时间'], "%Y-%m-%d %H:%M:%S.%f")
+                    if TU.total_seconds() <= 120:
+                        if df.iloc[i - 1]['业务状态'] == '成功' and df.iloc[i - 1]['异常释放标识'] == '否':
+                            TU_flag = True
+                        else:
+                            TU_flag = False
                     else:
                         TU_flag = False
+
+            if TD_flag == True and TU_flag == True:
+                if df.iloc[i]['综合失败原因'] in rule['综合失败原因']:
+                    pass
                 else:
-                    TU_flag = False
-
-                if TD_flag == True and TU_flag == True:
-                    if df.iloc[i]['综合失败原因'] in rule['综合失败原因']:
-                        pass
-                    else:
-                        rule = rule.append([{'综合失败原因': df.iloc[i]["综合失败原因"], '是否保留': '是',
-                                             '原因': datetime.now().strftime("%Y-%m-%d") + '新增' + ",2分钟内正常"}],
-                                           ignore_index=True)
+                    rule = rule.append([{'综合失败原因': df.iloc[i]["综合失败原因"], '是否保留': '是',
+                                         '原因': datetime.now().strftime("%Y-%m-%d") + '新增' + ",用户通话前后2分钟内正常"}],
+                                       ignore_index=True)
         return rule
-
-
-
-
-
-
 
     # 时间戳函数
     def analysis_timestamp(self, df, rule):
@@ -401,18 +404,18 @@ class SeqStatistics(QWidget):
             if d.total_seconds() <= 2:
                 print(df.iloc[i]['序号'])
                 if str(df.iloc[i]["综合失败原因"]) in str(rule['综合失败原因']):       # 如果在筛选表，判断是否保留
-                    b=rule[rule['综合失败原因']==df.iloc[i]["综合失败原因"]]['是否保留']
-                    # print(b.iloc[-1])
-                    if str(b.iloc[-1]) != '否':
-                        print('在表里')
-                        rule = rule.append([{'综合失败原因': df.iloc[i]["综合失败原因"], '是否保留': '是', '原因': datetime.now().strftime("%Y-%M-%d ")+'新增'+",2秒内断开"}],
-                                           ignore_index=True)
-                    else:
-                        pass
-
+                    pass  # 只要在表里，都不需要保留直接跳过该原因值
+                    # b=rule[rule['综合失败原因']==df.iloc[i]["综合失败原因"]]['是否保留']
+                    # # print(b.iloc[-1])
+                    # if str(b.iloc[-1]) != '否':
+                    #     print('在表里')
+                    #     rule = rule.append([{'综合失败原因': df.iloc[i]["综合失败原因"], '是否保留': '是', '原因': datetime.now().strftime("%Y-%M-%d ")+'新增'+",2秒内断开"}],
+                    #                        ignore_index=True)
+                    # else:
+                    #     pass
                 else:       # 如果不在筛选表，直接保留
                     print('不在表里')
-                    rule = rule.append([{'综合失败原因':df.iloc[i]["综合失败原因"], '是否保留':'是', '原因':datetime.now().strftime("%Y-%m-%d")+'新增'+",2秒内断开"}], ignore_index=True)
+                    rule = rule.append([{'综合失败原因':df.iloc[i]["综合失败原因"], '是否保留':'是', '原因':datetime.now().strftime("%Y-%m-%d")+'新增'+",通话2秒内断开"}], ignore_index=True)
 
         # 更新筛选表
         return rule
