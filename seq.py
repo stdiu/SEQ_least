@@ -343,20 +343,43 @@ class SeqStatistics(QWidget):
             QMessageBox.critical(self.ui, '错误', '请选择话单文件！')
 
         write.save()
+        self.analysis_statistics(df_MO, mo_rule, "主叫")
 
         # 调用分析函数   # 原因值为 mo_rule、mt_rule  主叫表为 df_MO 、df_MT
 
     # 分析原因函数
     def analysis_statistics(self, df, rule, identifi):
-        rule_check = rule[rule['是否保留']=='是']
-        df_fail = df[df['业务状态']=='失败' & df['综合失败原因'].isin(rule_check)]   # *叫失败
-        df_offline = df[df['异常释放标识']=='是' & df['综合失败原因'].isin(rule_check)]  # *叫掉线
+        # identifi = 主被叫
 
-        # 统计话单数
+        # 总话单数统计
         sum_call = df.shape[0]          # 行数
         sum_call_tpye = df['用户类型'].value_counts()   # 统计话单类型及数量
         sum_call_epsfb = sum_call_tpye['Vo5G']   # Vo5G话单数量
         sum_call_volte = sum_call - sum_call_epsfb  # volte话单数量
+
+        # 主被叫问题话单统计
+        rule_check = rule[rule['是否保留'] == '是']
+        print(rule_check)
+        df_fail = df[df['业务状态'] == '失败' & df['综合失败原因'].isin(rule_check)]  # *叫失败
+        df_offline = df[df['异常释放标识'] == '是' & df['综合失败原因'].isin(rule_check)]  # *叫掉线
+
+        print(identifi)
+        print('主叫失败名单')
+        print(df_fail0)
+        print('主叫掉线名单')
+        print(df_offline)
+
+
+
+
+
+
+
+
+
+
+
+
 
     # 用户回拨行为分析
     def analysis_userhabits(self, df, rule):
